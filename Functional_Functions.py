@@ -17,6 +17,24 @@ def generate_synthetic_upstream_data(num_samples, feature_size):
     """
     return torch.randn(num_samples, feature_size)
 
+def module_to_tensor_list(module):
+    """
+    Extracts all tensors from a torch.nn.Module and returns them as a list of lists (each tensor wrapped in a list).
+
+    Args:
+    - module (torch.nn.Module): The module from which to extract tensors.
+
+    Returns:
+    - List[List[torch.Tensor]]: A list where each element is a list containing a single tensor.
+    """
+    # Extract parameters (which are tensors) and convert the iterator to a list
+    tensor_list = list(module.parameters())
+    
+    # Wrap each tensor in a list to conform to the expected input of combine_tensor_datasets
+    wrapped_tensor_list = [[tensor] for tensor in tensor_list]
+    
+    return wrapped_tensor_list
+
 
 def combine_tensor_datasets(*datasets):
     """
