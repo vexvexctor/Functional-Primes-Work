@@ -160,8 +160,7 @@ y_hats = model_regression.predict(C_test, X_test, individual_preds=False)
 
 total_loss_val = 0
 y_hats = torch.from_numpy(y_hats).double()
-#targets_train = torch.from_numpy(Y_train)
-for y_hat, target in zip(y_hats, targets_train):
+for y_hat, target in zip(y_hats, Y_test):
     #print(f"size of y_hat is = {y_hat.shape}")
     #print(f"size of target is = {target.dtype}")
     loss = F.mse_loss(y_hat, target)
