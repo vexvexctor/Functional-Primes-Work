@@ -68,9 +68,9 @@ ccn_test = ContextualizedCorrelationNetworks(encoder_type='ngam', num_archetypes
 ccn_test.fit(C_test, X_test, max_epochs=5)
 
 #Running Dataset through upstream model (Transfer Learning in Contextualized Framework)
-models_train = ccn_train.predict_networks(C_train, with_offsets=False, individual_preds=True)
-models_val = ccn_val.predict_networks(C_val, with_offsets=False, individual_preds=True)
-models_test = ccn_test.predict_networks(C_test, with_offsets=False, individual_preds=True)
+models_train = ccn_train.predict_networks(C_train, with_offsets=False, individual_preds=False)
+models_val = ccn_val.predict_networks(C_val, with_offsets=False, individual_preds=False)
+models_test = ccn_test.predict_networks(C_test, with_offsets=False, individual_preds=False)
 
 # Process With Training Data and Validation Data
 
