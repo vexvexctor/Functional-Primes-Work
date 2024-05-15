@@ -44,6 +44,12 @@ phi_test = torch.from_numpy(np.random.uniform(-1, 1, size=(n_context, n_observed
 beta_test = torch.from_numpy(np.tensordot(C_test, phi_test, axes=1) + np.random.normal(0, 0.01, size=(n_samples, n_observed, n_outcomes)))
 Y_test = torch.from_numpy(np.array([np.tensordot(X_test[i], beta_test[i], axes=1) for i in range(n_samples)]))
 
+mean = torch.mean(Y_train)
+std = torch.std(Y_train)
+
+Y_train = (Y_train - mean)/ std
+Y_val = (Y_val - mean)/ std
+Y_test = (Y_test - mean)/ std
 
 # Combining Training and Validation Data for Contextualized Regression Model
 C_combined = torch.cat((C_train, C_val), dim=0)
