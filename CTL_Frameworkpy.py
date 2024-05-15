@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
-
+import torch.nn.init as init
 
 # Critical Functions
 
@@ -191,9 +191,13 @@ class LinearPreparationFunction(PreparationFunction):
     def __init__(self, input_shape, output_size):
         super().__init__(input_shape, output_size)
         self.linear = nn.Linear(int(input_shape), int(output_size))
+        init.uniform_(self.linear.weight, -1, 1)
+        init.uniform_(self.linear.bias, -1, 1) # Maybe Delete this???
 
     def forward(self, x):
         return self.linear(x.view(-1, self.input_shape))  # Flatten the input if not already 1D
+
+
 
 class MLPPreparationFunction(PreparationFunction):
     def __init__(self, input_shape, output_size, hidden_layer_sizes=[64, 64]):
@@ -201,13 +205,23 @@ class MLPPreparationFunction(PreparationFunction):
         layers = []
         last_size = input_shape
 
-        for size in hidden_layer_sizes:
-            layers.append(nn.Linear(last_size, size))
+        for idx, size in enumerate(hidden_layer_sizes):
+            layer = nn.Linear(last_size, size)
+            if idx < len(hidden_layer_sizes) - 1:  # Apply He initialization before ReLU
+                init.kaiming_uniform_(layer.weight, nonlinearity='relu')
+            else:  # Last layer before output, use uniform initialization
+                init.uniform_(layer.weight, -1, 1)
+            layers.append(layer)
             layers.append(nn.ReLU())
             last_size = size
 
-        layers.append(nn.Linear(last_size, output_size))
-        self.layers = nn.Sequential(*layers)  # Use Sequential for simplicity
+        # Output layer
+        output_layer = nn.Linear(last_size, output_size)
+        init.uniform_(output_layer.weight, -1, 1)
+        layers.append(output_layer)
+
+        self.layers = nn.Sequential(*layers)
+
 
     def forward(self, x):
         # Handle single sample dataset by flattening correctly
@@ -230,6 +244,10 @@ class SubModel(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_size, 1)  # Output a single value
         )
+
+        init.kaiming_uniform_(self.network[0].weight, nonlinearity='relu')
+        # Uniform initialization for the output layer
+        init.uniform_(self.network[2].weight, -1, 1)
 
     def forward(self, x):
         # x is expected to be a single feature value
@@ -444,3 +462,6 @@ def predict(observation_test, processed_samples_test, best_model_weights):
         predictions.append(y_hat)
 
     return torch.stack(predictions)  # Stack predictions to form a batch
+
+
+
