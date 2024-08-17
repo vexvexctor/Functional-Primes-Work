@@ -449,10 +449,10 @@ def predict(observation_test, processed_samples_test, best_model_weights):
 
     # Process each sample in the test dataset and predict
     predictions = []
-    sample_models = []
+    #sample_models = []
     for observation, sample in zip(observation_test, processed_samples_test):
-        y_hat, sample_specific_model = forward_pass_regression(observation, sample, prep_funcs, context_encoders, weighted_summation, archetype_dictionary)
+        y_hat = forward_pass_regression(observation, sample, prep_funcs, context_encoders, weighted_summation, archetype_dictionary)
         predictions.append(y_hat)
-        sample_models.append(sample_specific_model.detach().numpy())
+        #sample_models.append(sample_specific_model.detach().numpy())
 
-    return torch.stack(predictions), sample_models  # Stack predictions to form a batch
+    return torch.stack(predictions)  # Stack predictions to form a batch
