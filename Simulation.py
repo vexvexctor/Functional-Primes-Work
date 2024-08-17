@@ -82,7 +82,6 @@ models_test = ccn_test.predict_networks(C_test, with_offsets=False, individual_p
 
 # Process With Training Data and Validation Data
 
-# Training Data
 observations_train = X_train
 naive_context_train = C_train
 synthetic_context_train = torch.from_numpy(models_train)
@@ -107,7 +106,7 @@ targets_val = Y_val
 
 
 # Optimization Steps
-prep_funcs, context_encoders = dynamic_prep_and_encoder_assignment(first_sample_train, k=4, output_size= 15, hidden_layer_sizes= [4,4])
+prep_funcs, context_encoders = dynamic_prep_and_encoder_assignment(first_sample_train, k=4, output_size= 15, hidden_layer_sizes_prep=[4,4], hidden_layer_sizes_encoder=[4])
 weighted_summation = WeightedSummation(num_subtypes = 2)
 archetype_dictionary = ArchetypeDictionary(observation_count=3, output_count=5, num_archetypes=4)
 
@@ -173,7 +172,7 @@ for y_hat, target in zip(y_hats, Y_test):
     #print(f"size of target is = {target.dtype}")
     loss = F.mse_loss(y_hat, target)
     total_loss_val += loss.item()
-print(f"The average loss is = {total_loss_val/150}")
+print(f"The average loss is = {total_loss_val/75}")
 
 
 # UNIT TESTING OF CTL 
@@ -196,4 +195,4 @@ for y_hat, target in zip(y_hats_test, targets_test):
     #print(f"size of target is = {target.dtype}")
     loss = F.mse_loss(y_hat, target)
     total_loss_val += loss.item()
-print(f"The average loss is = {total_loss_val/150}")
+print(f"The average loss is = {total_loss_val/75}")
