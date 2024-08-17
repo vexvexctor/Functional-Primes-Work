@@ -9,6 +9,8 @@ from torch.utils.data import Dataset, ConcatDataset
 from itertools import chain
 from contextualized.easy import ContextualizedCorrelationNetworks
 
+# Run CTL_Framework.py to first have Contextualized Transfer Learning saved in local Colab Memory. 
+
 # We are first setting up the simple linear machine learning problem with a known C, X, Y as well as the things to predict " the betas (sample specific models)"
 n_samples =75
 n_observed = 3 # Rename to Predictiors
