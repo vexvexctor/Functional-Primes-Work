@@ -189,10 +189,10 @@ class PreparationFunction(nn.Module):
 
 class LinearPreparationFunction(PreparationFunction):
     def __init__(self, input_shape, output_size):
-        super().__init__(input_shape, output_size)
+        super(LinearPreparationFunction, self).__init__(input_shape, output_size)
         self.linear = nn.Linear(int(input_shape), int(output_size))
-        init.uniform_(self.linear.weight, -1, 1)
-        init.uniform_(self.linear.bias, -1, 1) # Maybe Delete this???
+        nn.init.kaiming_uniform_(self.linear.weight, nonlinearity='relu')  # Kaiming initialization
+        nn.init.zeros_(self.linear.bias)
 
     def forward(self, x):
         return self.linear(x.view(-1, self.input_shape))  # Flatten the input if not already 1D
@@ -201,23 +201,21 @@ class LinearPreparationFunction(PreparationFunction):
 
 class MLPPreparationFunction(PreparationFunction):
     def __init__(self, input_shape, output_size, hidden_layer_sizes=[64, 64]):
-        super().__init__(input_shape, output_size)
+        super(MLPPreparationFunction, self).__init__(input_shape, output_size)
         layers = []
         last_size = input_shape
 
         for idx, size in enumerate(hidden_layer_sizes):
             layer = nn.Linear(last_size, size)
-            if idx < len(hidden_layer_sizes) - 1:  # Apply He initialization before ReLU
-                init.kaiming_uniform_(layer.weight, nonlinearity='relu')
-            else:  # Last layer before output, use uniform initialization
-                init.uniform_(layer.weight, -1, 1)
+            nn.init.kaiming_uniform_(layer.weight, nonlinearity='relu')  # He initialization
+            nn.init.zeros_(layer.bias)
             layers.append(layer)
             layers.append(nn.ReLU())
             last_size = size
 
-        # Output layer
         output_layer = nn.Linear(last_size, output_size)
-        init.uniform_(output_layer.weight, -1, 1)
+        nn.init.kaiming_uniform_(output_layer.weight, nonlinearity='relu')
+        nn.init.zeros_(output_layer.bias)
         layers.append(output_layer)
 
         self.layers = nn.Sequential(*layers)
@@ -238,28 +236,35 @@ class MLPPreparationFunction(PreparationFunction):
 class SubModel(nn.Module):
     def __init__(self, hidden_size):
         super(SubModel, self).__init__()
-        # Define a simple feed-forward network for a single feature
         self.network = nn.Sequential(
-            nn.Linear(1, hidden_size),  # Single feature as input
+            nn.Linear(1, hidden_size),
             nn.ReLU(),
-            nn.Linear(hidden_size, 1)  # Output a single value
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1)
         )
-
-        init.kaiming_uniform_(self.network[0].weight, nonlinearity='relu')
-        # Uniform initialization for the output layer
-        init.uniform_(self.network[2].weight, -1, 1)
+        for layer in self.network:
+            if isinstance(layer, nn.Linear):
+                nn.init.kaiming_uniform_(layer.weight, nonlinearity='relu')
+                nn.init.zeros_(layer.bias)
 
     def forward(self, x):
-        # x is expected to be a single feature value
         return self.network(x)
+
 
 class ContextEncoder(nn.Module):
     def __init__(self, num_features, hidden_size, output_size):
         super(ContextEncoder, self).__init__()
         self.num_features = num_features
+        if isinstance(hidden_size, list):
+            hidden_size = hidden_size[0]
+
         self.sub_models = nn.ModuleList([SubModel(hidden_size) for _ in range(num_features)])
-        # Linear layer to project the sum of sub-model outputs to the archetype space of dimension k
         self.output_layer = nn.Linear(num_features, output_size)
+        nn.init.kaiming_uniform_(self.output_layer.weight, nonlinearity='relu')
+        nn.init.zeros_(self.output_layer.bias)
 
     def forward(self, refined_context):
         # refined_context is expected to be a vector with 'num_features' elements
@@ -271,7 +276,7 @@ class ContextEncoder(nn.Module):
 
 # Linear Preperation/Context Encoder Assignment Function
 
-def dynamic_prep_and_encoder_assignment(first_sample, k=5, output_size=100, hidden_layer_sizes=[64, 64]):
+def dynamic_prep_and_encoder_assignment(first_sample, k=5, output_size=100, hidden_layer_sizes_prep=[64, 64.64], hidden_layer_sizes_encoder=[64]):
     """
     Initializes preparation functions and context encoders based on the first sample's datasets.
     These models are shared across all samples.
@@ -293,7 +298,7 @@ def dynamic_prep_and_encoder_assignment(first_sample, k=5, output_size=100, hidd
         if data.dim() > 1:  # Multidimensional data
             # Flatten all dimensions to create a single long vector
             input_shape = data.numel()  # Number of elements in tensor
-            prep_func = MLPPreparationFunction(input_shape=input_shape, output_size=output_size, hidden_layer_sizes=hidden_layer_sizes)
+            prep_func = MLPPreparationFunction(input_shape=input_shape, output_size=output_size, hidden_layer_sizes=hidden_layer_sizes_prep)
         else:  # Single-dimensional data
             input_shape = data.shape[-1]
             prep_func = LinearPreparationFunction(input_shape=input_shape, output_size=output_size)
@@ -301,7 +306,7 @@ def dynamic_prep_and_encoder_assignment(first_sample, k=5, output_size=100, hidd
         shared_prep_funcs.append(prep_func)
 
         # Initialize a shared context encoder for each preparation function's output
-        context_encoder = ContextEncoder(num_features=output_size, hidden_size=hidden_layer_sizes[-1], output_size=k)
+        context_encoder = ContextEncoder(num_features=output_size, hidden_size=hidden_layer_sizes_encoder, output_size=k)
         shared_context_encoders.append(context_encoder)
 
     return shared_prep_funcs, shared_context_encoders
@@ -396,39 +401,26 @@ def forward_pass(sample, prep_funcs, context_encoders, weighted_summation, arche
 
 
 def forward_pass_regression(observation, sample, prep_funcs, context_encoders, weighted_summation, archetype_dictionary):
-    # Process the sample
     refined_contexts = [
-    prep_func(data.view(-1).unsqueeze(0).float() if data.dim() > 1 else data.unsqueeze(0).float())
-    for prep_func, data in zip(prep_funcs, sample)
+        prep_func(data.view(-1).unsqueeze(0).float() if data.dim() > 1 else data.unsqueeze(0).float())
+        for prep_func, data in zip(prep_funcs, sample)
     ]
 
-
     encoded_contexts = [encoder(context) for encoder, context in zip(context_encoders, refined_contexts)]
-
-
     subtypes_tensor = torch.stack(encoded_contexts, dim=1)
 
-
-
-    # Calculate super subtype for the current sample
     super_subtype = weighted_summation(subtypes_tensor)
 
-
-
-    # Compute the sample-specific model using the current super subtype
     sample_specific_model = archetype_weighting(super_subtype, archetype_dictionary.archetypes)
 
-    #print(f"Shape of sample_specific_model is = {sample_specific_model.shape}")
-    #print(f"Shape of Observation is = {observation.shape}")
-
-    sample_specific_model = sample_specific_model.double()
+    sample_specific_model = sample_specific_model.double()  # Ensure consistency
     observation = observation.double()
 
     transposed_model = sample_specific_model.transpose(0, 2).squeeze(2)
-
     y_hat = torch.matmul(transposed_model, observation.T)
+    y_hat = torch.sigmoid(y_hat)
 
-    return y_hat
+    return y_hat #sample_specific_model
 
 
 # R^2 Calculation to give a bettter idea on how the model is performing
@@ -457,11 +449,10 @@ def predict(observation_test, processed_samples_test, best_model_weights):
 
     # Process each sample in the test dataset and predict
     predictions = []
+    sample_models = []
     for observation, sample in zip(observation_test, processed_samples_test):
-        y_hat = forward_pass_regression(observation, sample, prep_funcs, context_encoders, weighted_summation, archetype_dictionary)
+        y_hat, sample_specific_model = forward_pass_regression(observation, sample, prep_funcs, context_encoders, weighted_summation, archetype_dictionary)
         predictions.append(y_hat)
+        sample_models.append(sample_specific_model.detach().numpy())
 
-    return torch.stack(predictions)  # Stack predictions to form a batch
-
-
-
+    return torch.stack(predictions), sample_models  # Stack predictions to form a batch
